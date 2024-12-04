@@ -1,0 +1,145 @@
+---
+title: "Users+Transactional Data"
+author: "Ming Thet Paing"
+date: "2024-12-03"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+users_data <- read.csv("C:/Users/DELL/Downloads/users_data.csv")
+
+# Remove dollar signs and convert to numeric
+users_data$per_capita_income <- as.numeric(gsub("\\$", "", users_data$per_capita_income))
+users_data$yearly_income <- as.numeric(gsub("\\$", "", users_data$yearly_income))
+users_data$total_debt <- as.numeric(gsub("\\$", "", users_data$total_debt))
+head(users_data)
+summary(users_data)
+```
+
+
+```{r}
+transactional_data <- read.csv("C:/Users/DELL/Downloads/transactions_data.csv")
+head(transactional_data)
+str(transactional_data)
+```
+
+
+```{r}
+# Install and load the jsonlite package
+library(jsonlite)
+
+# Read the JSON file
+mcc_data <- fromJSON("C:/Users/DELL/Downloads/mcc_codes.json")
+
+# Print the data
+print(mcc_data)
+head(mcc_data)
+str(mcc_data)
+```
+```{r}
+library(dplyr)
+users_data <- users_data %>%
+  rename(client_id = id)
+
+combined_data <- merge(users_data, transactional_data, by = "client_id", all = TRUE)
+combined_data
+head(combined_data)
+str(combined_data)
+```
+```{r}
+# Alternative approach using base R
+mcc_descriptions <- data.frame(
+    mcc = as.numeric(gsub("X", "", names(mcc_data))),
+    description = as.character(unlist(mcc_data))
+)
+
+# Merge with transaction data
+combined_data_mcc <- merge(combined_data, 
+                      mcc_descriptions, 
+                      by = "mcc", 
+                      all.x = TRUE)
+
+# View the result
+head(combined_data_mcc)
+str(combined_data_mcc)
+```
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Convert amount column from character to numeric
+combined_data_mcc$amount <- as.numeric(gsub("\\$", "", combined_data_mcc$amount))
+
+# Analysis by gender and merchant categories
+gender_spending <- combined_data_mcc %>%
+  group_by(gender, description) %>%
+  summarise(
+    avg_spending = mean(amount, na.rm = TRUE),
+    total_spending = sum(amount, na.rm = TRUE),
+    transaction_count = n()
+  ) %>%
+  arrange(desc(avg_spending))
+
+# Show the summary
+print("Average spending by gender and merchant category:")
+print(gender_spending)
+
+# Create a more focused visualization
+ggplot(gender_spending, aes(x = reorder(description, -avg_spending), y = avg_spending, fill = gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Average Spending by Gender and Merchant Category",
+       x = "Merchant Category",
+       y = "Average Spending ($)") +
+  scale_fill_brewer(palette = "Set1")
+
+```
+
+
+```{r}
+gender_spending <- combined_data_mcc %>%
+  group_by(gender, description) %>%
+  summarise(
+    avg_spending = mean(amount, na.rm = TRUE),
+    total_spending = sum(amount, na.rm = TRUE),
+    transaction_count = n(),
+    .groups = 'drop'  # Un-group after summarization
+  ) %>%
+  arrange(desc(avg_spending))
+
+# Get top 5 categories for males
+top_male_categories <- gender_spending %>%
+  filter(gender == "Male") %>%
+  top_n(5, avg_spending)
+
+# Get top 5 categories for females
+top_female_categories <- gender_spending %>%
+  filter(gender == "Female") %>%
+  top_n(5, avg_spending)
+# Combine the top categories
+top_categories_combined <- bind_rows(top_male_categories, top_female_categories)
+
+library(ggplot2)
+
+ggplot(top_categories_combined, aes(x = reorder(description, -avg_spending), y = avg_spending, fill = gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Top 5 Spending Categories by Gender",
+       x = "Merchant Category",
+       y = "Average Spending ($)") +
+  scale_fill_brewer(palette = "Set1")
+```
+```{r}
+
+```
+

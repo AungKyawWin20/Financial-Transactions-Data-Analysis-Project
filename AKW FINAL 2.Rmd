@@ -1,0 +1,512 @@
+---
+title: "Final AKW"
+author: "Aung Kyaw Win"
+date: "2024-12-03"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading the necessary libraries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(rjson)
+library(plotrix)
+library(car)
+library(data.table)
+library(ggthemes)
+library(lubridate)
+```
+
+Reading the data files
+
+```{r}
+#Transactions CSV File
+transactions =fread("C:/Users/akw97/Downloads/archive/transactions_data.csv")
+#Merchant Categories JSON File
+merchant_categories = fromJSON(file = "C:/Users/akw97/Downloads/archive/mcc_codes.json" )
+mcc_df <- data.frame(mcc_code = names(merchant_categories), business_type = unlist(merchant_categories), stringsAsFactors = FALSE)
+
+#users Data CSV File
+user_data = read.csv("C:/Users/akw97/Downloads/archive/users_data.csv")
+
+#Card Data CSV File
+card_data = read.csv("C:/Users/akw97/Downloads/archive/cards_data.csv")
+```
+
+Exploring the datasets
+
+```{r}
+summary(transactions)
+head(transactions)
+
+summary(user_data)
+head(user_data)
+
+summary(card_data)
+head(card_data)
+
+#Checking for missing values
+colSums(is.na(transactions)) #For Transactions File
+
+colSums(is.na(user_data)) #For User Data File
+
+colSums(is.na(card_data)) #For  Card Data File
+```
+
+
+Data Wrangling Process
+
+```{r}
+#Clean Up Process For Transactions CSV File
+transactions$amount = gsub("[$,-]", "", transactions$amount) #Removing the $ sign and minus sign from the "amount" column
+transactions$amount = as.numeric(transactions$amount) #Converting the column into numerics
+transactions$use_chip = as.factor(transactions$use_chip) #Converting the transaction type into factors
+
+#Clean Up Process For User Data CSV File
+user_data$yearly_income = gsub("[$,]", "", user_data$yearly_income) #Removing the $ sign
+user_data$yearly_income = as.numeric(user_data$yearly_income) #Converting into a numeric
+
+user_data$total_debt = gsub("[$,]", "", user_data$total_debt) #Removing the $ sign
+user_data$total_debt = as.numeric(user_data$total_debt) #Converting into a numeric
+
+head(user_data)
+
+
+#Clean Up Process For Merchant Categories JSON File
+mcc_df$mcc_code = as.integer(mcc_df$mcc_code) #Converting the mcc code into integers
+
+str(mcc_df) #Rechecking to see changes were made correctly
+
+#Clean Up Process For Card Data CSV File
+card_data$credit_limit = gsub("[$,]", "", card_data$credit_limit) #Removing the $sign
+card_data$credit_limit = as.numeric(card_data$credit_limit)
+
+
+#Verifying changes
+head(transactions$amount)
+head(user_data)
+head(card_data)
+head(mcc_df)
+```
+
+Merging Datasets
+
+```{r}
+#Merging all the datasets by common keys
+data1 = transactions %>%
+  inner_join(user_data, by = c("client_id" = "id")) #Joining User Data into Transaction Data
+
+data2 = transactions %>%
+  inner_join(card_data, by = "client_id") #Joining Card Data into Transaction Data
+```
+
+```{r}
+data3 = data1 %>%
+  inner_join(mcc_df, by = c("mcc" = "mcc_code")) #Joining Merchant Category Into Transaction Data and User Data
+
+data4 = user_data %>%
+  inner_join(card_data, by = c("id" = "client_id")) # Joining User Data and Card Data CSV Files
+
+data4 = data4 %>%
+  mutate(credit_utilization = (total_debt / credit_limit) * 100)
+
+data3 = na.omit(data3) #Omitting null values
+head(data3) #Checking if changes were made
+```
+
+```{r}
+data3 <- data3 %>%
+  mutate(
+    # Creating income bins based on yearly_income
+    income_bin = cut(yearly_income,
+                     breaks = c(0, 30000, 70000, 150000, Inf),
+                     labels = c("Low", "Middle", "Upper Middle", "High"), 
+                     right = FALSE), # Ensures bins are inclusive of the left side
+
+    # Creating credit score categories based on credit_score
+    credit_score_range = case_when(
+      credit_score < 600 ~ "Low",
+      credit_score >= 600 & credit_score < 700 ~ "Medium",
+      credit_score >= 700 ~ "High",
+      TRUE ~ NA_character_ # Ensures NA values are handled if any
+    ),
+
+    # Creating Debt To Income Ratio column
+    debt_to_income = total_debt / yearly_income,
+
+    # Categorizing users into age groups
+    age_group = case_when(
+      current_age <= 25 ~ "Young Adult",
+      current_age > 25 & current_age <= 45 ~ "Adult",
+      current_age > 45 ~ "Older People"
+    )
+  )
+
+#Converting date to a propoer format and grouping by month
+transactions1 <- transactions %>%
+  mutate(transaction_month = floor_date(as.Date(date, format = "%Y-%m-%d"), "month")) %>%
+  group_by(transaction_month) %>%
+  summarize(total_amount = sum(amount, na.rm = TRUE))
+```
+
+Stratified Random Sampling Dataset
+
+```{r}
+set.seed(123) #To reproduce the same results
+
+sampled_data = data3 %>%
+  group_by(income_bin) %>%
+  sample_frac(1300000 / nrow(data3)) %>% #Using 10% of the dataset
+  ungroup()
+
+summary(sampled_data)
+```
+
+
+Transactions By Type Graph
+
+```{r}
+#Summarizing the transactions by transaction type and converting into percentage
+transaction_type = transactions %>%
+  group_by(use_chip) %>%
+  summarize(count = n ())%>%
+  mutate(percentage = count / sum(count) * 100)
+
+#Creating a Pie Chart to Visualize
+ggplot(transaction_type, aes(x = "", y = percentage, fill = use_chip,)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") + #Converting the bar plot into pie chart
+  labs(title = "Transactions by Type", x = "", y = "") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+
+Transactions Count By Top Cities
+```{r}
+#Summarizing the transactions count by merchant city and selecting the top 10 cities
+top_cities = transactions %>%
+  group_by(merchant_city) %>%
+  summarize(transaction_count = n()) %>%
+  arrange(desc(transaction_count)) %>%
+  slice_head(n = 10)
+
+#Creating a Bar plot to visualize
+ggplot(top_cities, aes(x = reorder(merchant_city, transaction_count), y = transaction_count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top 10 Merchant Cities by Transaction Count", x = "Merchant City", y = "Transaction Count") +
+  theme_economist()
+```
+
+Transactions By Business Type
+
+```{r}
+#Summarizing the total transaction amount by business type and selecting the top 5 business categories
+spending_category = data3 %>%
+  group_by(business_type) %>%
+  summarize(total_amount = sum(amount, na.rm = TRUE)) %>%
+  arrange(desc(total_amount))%>%
+  slice_max(total_amount, n = 5) %>%
+  mutate(percentage = total_amount / sum(total_amount) * 100) #Calculating the percentage of each business type
+
+ggplot(spending_category, aes(x = "", y = total_amount, fill = business_type)) + 
+  geom_bar(stat = "identity", width = 1, color = "white", size = 0.8) +  # White borders around each slice
+  coord_polar("y") +  # Convert bar chart to pie chart
+  labs(title = "Spending by MCC Code Category", x = "", y = "") +  # Title and remove axis labels
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5),  # Position percentage labels in the center
+            color = "white", size = 3, fontface = "bold") +  # White bold text for readability
+  scale_fill_brewer(palette = "Paired") +  # Use the Paired color palette
+  theme_minimal() +  # Remove gridlines and background
+  theme(
+    legend.position = "right",  # Position legend to the right
+    plot.title = element_text(size = 20, face = "bold", color = "darkblue", hjust = 0.5),  # Fancy title
+    plot.margin = margin(30, 30, 30, 30)  # Add padding around the plot
+  )
+```
+
+Average Spending By Income Bracket and Linear Regression between Yearly Income and Transaction Amount
+
+```{r}
+avg_spending = data3 %>%
+  group_by(income_bin) %>%
+  summarize(average_spending = mean(amount, na.rm = TRUE))
+
+print(avg_spending)
+
+ggplot(avg_spending, aes(x = income_bin, y = average_spending, fill = income_bin)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  labs(
+    title = "Average Spending by Income Bracket",
+    x = "Income Bracket",
+    y = "Average Spending"
+  ) +
+  theme_economist() +
+  scale_fill_brewer(palette = "Set3")
+
+#Linear regression to assess the relationship between yearly income and spending
+lm_model <- lm(amount ~ yearly_income, data = sampled_data)
+summary(lm_model)
+
+# Print the model's coefficients
+print(coef(lm_model))
+
+# Plotting the linear regression between yearly income and transaction amount
+ggplot(sampled_data, aes(x = yearly_income, y = amount)) +
+  geom_point(alpha = 0.4) +  # Scatter plot of the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adding the regression line
+  labs(
+    title = "Relationship between Yearly Income and Spending",
+    x = "Yearly Income",
+    y = "Transaction Amount"
+  ) +
+  theme_economist()
+```
+Average Spending By Credit Score and Linear Regression Between Credit Score and Transaction Amount
+```{r}
+avg_spending_by_CreditScore = data3 %>%
+  group_by(credit_score_range) %>%
+  summarize(average_spending = mean(amount, na.rm = TRUE))
+
+ggplot(avg_spending_by_CreditScore, aes(x = credit_score_range, y = average_spending, fill = credit_score_range)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  labs(
+    title = "Average Spending by Credit Score Range",
+    x = "Credit Score Range",
+    y = "Average Spending"
+  ) +
+  theme_economist() +
+  scale_fill_brewer(palette = "Set2")
+
+#Linear regression to assess the relationship between credit score and spending amount
+lm_credit_score = lm(amount~credit_score, data = sampled_data)
+summary(lm_credit_score)
+
+
+# Plotting the linear regression between Credit Score and transaction amount
+ggplot(sampled_data, aes(x = credit_score, y = amount)) +
+  geom_point(alpha = 0.4) +  # Scatter plot of the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adding the regression line
+  labs(
+    title = "Relationship between Credit Score and Spending",
+    x = "Credit Score",
+    y = "Transaction Amount"
+  ) +
+  theme_economist()
+```
+
+Average Spending By Age and Linear Regression between Current Age and Transaction Amount
+```{r}
+avg_spending_by_age = data3 %>%
+  group_by(current_age) %>%
+  summarize(average_spending = mean(amount, na.rm = TRUE))
+
+ggplot(avg_spending_by_age, aes(x = current_age, y = average_spending))+
+ geom_point(alpha = 0.4, color = "blue") + # Scatter points
+  geom_smooth(method = "lm", color = "red") + # Regression line
+  labs(
+    title = "Relationship between Age and Spending Amount",
+    x = "Current Age",
+    y = "Transaction Amount"
+  ) +
+  theme_economist()
+
+#Linear regression to assess the relationship between current age and spending amount
+lm_age_spending = lm(amount ~ current_age, data = sampled_data)
+summary(lm_age_spending)
+
+# Plotting the linear regression between Current Age and Transaction Amount
+ggplot(sampled_data, aes(x = current_age, y = amount)) +
+  geom_point(alpha = 0.4) +  # Scatter plot of the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adding the regression line
+  labs(
+    title = "Relationship between Current Age and Spending",
+    x = "Current Age",
+    y = "Transaction Amount"
+  ) +
+  theme_economist()
+```
+
+Average Debt and Age and Linear Regression Between Total Debt and Age
+```{r}
+avg_debt_by_age = data3 %>%
+  group_by(current_age) %>%
+  summarize(average_debt = mean(total_debt, na.rm = TRUE))
+
+# Plotting the relationship
+ggplot(avg_debt_by_age, aes(x = current_age, y = average_debt)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(
+    title = "Relationship between Age and Average Debt",
+    x = "Age",
+    y = "Average Debt"
+  ) +
+  theme_economist()
+
+#Linear regression to assess the relationship between current age and total debt
+lm_age_debt <- lm(total_debt ~ current_age, data = user_data)
+summary(lm_age_debt)
+
+# Plotting the linear regression between Current Age and Total Debt
+ggplot(sampled_data, aes(x = current_age, y = total_debt)) +
+  geom_point(alpha = 0.4) +  # Scatter plot of the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adding the regression line
+  labs(
+    title = "Relationship between Total Debt and Current Age",
+    x = "Age",
+    y = "Total Debt"
+  ) +
+  theme_economist()
+```
+
+Multiple Linear Regression Predicting Transaction Amount Based on Current Age, Credit Score, and Yearly Income
+
+```{r}
+lm_multiple <- lm(amount ~ current_age + credit_score + yearly_income, data = sampled_data)
+summary(lm_multiple)
+```
+
+Avg Debt By Age Group
+
+```{r}
+#Creating Age Bins and Summarizing by Average Debt
+avg_debt_and_age = data3 %>%
+  mutate(age_bin = cut(current_age, breaks = seq(20,100,15))) %>%
+  group_by(age_bin) %>%
+  summarize(avg_debt = mean(total_debt, na.rm = TRUE))
+
+#Plotting the Graph
+ggplot(avg_debt_and_age, aes(x = age_bin, y = avg_debt)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(title = "Average Debt By Age Group", x = "Age Group", y = "Average Debt") +
+  theme_economist()
+```
+
+Linear Regression Between Yearly Income and Total Debt
+
+```{r}
+#Building the linear regression model
+lm_income_debt = lm(total_debt ~ yearly_income, data = user_data)
+summary(lm_income_debt)
+
+#Plotting the graph
+ggplot(user_data, aes(x = yearly_income, y = total_debt)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Relationship Between Yearly Income and Total Debt",
+       x = "Yearly Income", y = "Total Debt") +
+  theme_economist()
+```
+
+Time Series Analysis on Transaction Trends Over Time
+
+```{r}
+ggplot(transactions1, aes(x = transaction_month, y = total_amount)) +
+  geom_line(color = "darkgreen", size = 1) +
+  labs(title = "Monthly Transaction Trends", x = "Month", y = "Total Transactions") +
+  theme_economist()
+```
+
+Correlation Between Credit Limit and Credit Score
+
+```{r}
+# Calculate the correlation coefficient between credit limit and credit score
+correlation <- cor(data4$credit_limit, data4$credit_score, use = "complete.obs")
+
+# Print the correlation result
+print(paste("Correlation between Credit Limit and Credit Score: ", round(correlation, 2)))
+
+# Create a scatter plot
+ggplot(data4, aes(x = credit_score, y = credit_limit)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(
+    title = "Relationship between Credit Score and Credit Limit",
+    subtitle = paste("Correlation: ", round(correlation, 2)),
+    x = "Credit Score",
+    y = "Credit Limit"
+  ) +
+  theme_economist()
+
+```
+
+Correlation Between Income and Credit Limit
+
+```{r}
+# Step 1: Calculate the correlation between yearly income and credit limit
+correlation_income_limit <- cor(data4$yearly_income, data4$credit_limit, use = "complete.obs")
+
+# Step 2: Create a scatter plot
+ggplot(data4, aes(x = yearly_income, y = credit_limit)) +
+  geom_point(alpha = 0.3, color = "black") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(
+    title = "Relationship between Yearly Income and Credit Limit",
+    subtitle = paste("Correlation: ", round(correlation_income_limit, 2)),
+    x = "Yearly Income",
+    y = "Credit Limit"
+  ) +
+  theme_economist()
+
+```
+
+Linear Regression Between Total_debt and Number Of Credit Cards
+
+```{r}
+# Aggregate total debt and number of credit cards
+debt_by_cards <- sampled_data %>%
+  group_by(num_credit_cards) %>%
+  summarize(
+    avg_total_debt = mean(total_debt, na.rm = TRUE)
+  )
+
+# Plot the relationship
+ggplot(debt_by_cards, aes(x = num_credit_cards, y = avg_total_debt)) +
+  geom_point(color = "darkblue", size = 3, alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  labs(
+    title = "Relationship between Number of Cards and Total Debt",
+    x = "Number of Credit Cards",
+    y = "Average Total Debt"
+  ) +
+  theme_economist()
+
+```
+
+Correlation Of Regional Income and Average Transaction Amount
+
+```{r}
+# Calculate average transaction amount by state
+state_avg_income <- sampled_data %>%
+  group_by(merchant_state) %>%
+  summarize(avg_transaction = mean(amount, na.rm = TRUE),
+            avg_income = mean(yearly_income, na.rm = TRUE))
+
+print(state_avg_income)
+
+# Scatterplot of average income vs. average transaction amount
+ggplot(state_avg_income, aes(x = avg_income, y = avg_transaction)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_smooth(method = "lm", color = "red") +
+  labs(
+    title = "Correlation Between Regional Income and Average Transaction Amount",
+    x = "Average Yearly Income",
+    y = "Average Transaction Amount"
+  ) +
+  theme_minimal()
+
+```
+
+
+

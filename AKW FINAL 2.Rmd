@@ -3,8 +3,8 @@ title: "Final AKW"
 author: "Aung Kyaw Win"
 date: "2024-12-03"
 output:
-  word_document: default
   html_document: default
+  word_document: default
   pdf_document: default
 ---
 
@@ -29,16 +29,16 @@ Reading the data files
 
 ```{r}
 #Transactions CSV File
-transactions =fread("C:/Users/akw97/Downloads/archive/transactions_data.csv")
+transactions =fread("D:/Education/Data Science/Programming with R/FinalProject/transactions_data.csv")
 #Merchant Categories JSON File
-merchant_categories = fromJSON(file = "C:/Users/akw97/Downloads/archive/mcc_codes.json" )
+merchant_categories = fromJSON(file = "D:/Education/Data Science/Programming with R/FinalProject/mcc_codes.json")
 mcc_df <- data.frame(mcc_code = names(merchant_categories), business_type = unlist(merchant_categories), stringsAsFactors = FALSE)
 
 #users Data CSV File
-user_data = read.csv("C:/Users/akw97/Downloads/archive/users_data.csv")
+user_data = read.csv("D:/Education/Data Science/Programming with R/FinalProject/users_data.csv")
 
 #Card Data CSV File
-card_data = read.csv("C:/Users/akw97/Downloads/archive/cards_data.csv")
+card_data = read.csv("D:/Education/Data Science/Programming with R/FinalProject/cards_data.csv")
 ```
 
 Exploring the datasets

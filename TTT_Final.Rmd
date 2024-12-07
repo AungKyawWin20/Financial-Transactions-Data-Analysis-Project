@@ -102,7 +102,7 @@ ggplot(top_transactions, aes(x = reorder(transaction_type, -count), y = count, f
   theme(axis.text.x = element_text(angle = 70, hjust=1, vjust=1))
 ```
 
-According to the graph, most transactions happens in grocery stores and supermarkets, food stores & service stations. But noticeably, tolls and bridge fees are paid solely by online transactions & drug stores and pharmacies seems like they only accept swipe transactions.
+According to the graph, the majority of transactions occur in grocery stores, supermarkets, miscellaneous food stores, and service stations, reflecting these as key areas of consumer spending. A noteworthy observation is that tolls and bridge fees are exclusively paid through online transactions, suggesting a preference or necessity for digital payments in this category. Conversely, drug stores and pharmacies predominantly handle payments via swipe transactions, indicating a possible inclination or requirement for in-person swipes in these establishments. Additionally, while online transactions are generally fewer across most categories, they are more frequent than swipe transactions in specific areas such as eating places and restaurants, demonstrating a shift towards digital payments in certain scenarios.
 
 3.  **Payment Method Based on Merchant City**
 
@@ -142,4 +142,27 @@ ggplot(time_series_data, aes(x = date, y = total_amount, color = use_chip, group
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
 ```
 
-Starting from 2010, there were more store based transactions and after 2015, most transactions it switched to online. One small detail is that, during 2016, both online and store based transactions dropped to zero for some reason.
+From 2010 onwards, the data indicates a higher frequency of store-based transactions compared to online transactions. However, a significant shift occurred after 2015, with online transactions surpassing store-based transactions, highlighting a trend towards digital payment methods. Interestingly, the graph reveals that in 2016, both online and store-based transactions dropped to zero, which could suggest an unusual event or anomaly affecting all transaction activities during that period.
+
+This temporal analysis underscores evolving consumer behavior and payment preferences over the decade.
+
+In order to find this anomaly, we need to filter the from the years of 2015, 2016, 2017, & 2018.
+
+```{r}
+df_selected$date <- as.Date(df_selected$date, format="%Y-%m-%d")
+df_selected$Year <- format(df_selected$date, "%Y")
+
+filtered_data <- df_selected %>%
+  filter(Year %in% c("2015","2016", "2017", "2018"))
+
+summary_data <- filtered_data %>%
+  group_by(Year, use_chip) %>%
+  summarize(TotalTransactions = n(), .groups = 'drop')
+
+total_transactions <- filtered_data %>%
+  group_by(Year) %>%
+  summarize(TotalTransactions = n(), .groups = 'drop')
+
+summary_data
+total_transactions
+```

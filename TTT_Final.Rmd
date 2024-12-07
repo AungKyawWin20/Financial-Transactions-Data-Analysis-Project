@@ -1,0 +1,168 @@
+---
+title: "Final_Project_TTT"
+author: "Group-5"
+date: "2024-12-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+These are the following libraries to answer the question *(shown below)*
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(jsonlite)
+library(ggthemes)
+```
+
+**Load the datasets** and rename columns names in `mcc` dataset
+
+```{r}
+data <- read.csv("D:/Education/Data Science/Programming with R/FinalProject/transactions_data.csv")
+#head(data)
+mcc <- read_json("D:/Education/Data Science/Programming with R/FinalProject/mcc_codes.json") %>% 
+  as.data.frame() %>% 
+  stack() %>% 
+  mutate(ind=gsub("\\X", "", ind)) %>% 
+  rename(mcc=ind, transaction_type=values)
+```
+
+**Data Segmentation** in the `transaction data` for better performance & joining with `mcc` dataset
+
+```{r}
+df_selected <- data %>% select(date, amount, use_chip, merchant_city, mcc, client_id)
+
+df_selected$mcc <- as.character(df_selected$mcc)
+df_selected <- left_join(df_selected, mcc, by = "mcc")
+```
+
+**Cleaning** the `amount` column from `selected transaction data`
+
+```{r}
+df_selected$amount <- gsub("\\$", "", df_selected$amount)  # Remove dollar signs
+df_selected$amount <- gsub("^-", "", df_selected$amount) 
+df_selected$amount <- gsub("-", "", df_selected$amount)
+
+df_selected$amount <- as.numeric(df_selected$amount)
+```
+
+Changing the "Chip Transaction" to "Online Transaction" for **data consistency**
+
+```{r}
+df_selected <- df_selected %>% 
+  mutate(use_chip = ifelse(use_chip == "Chip Transaction", "Online Transaction", use_chip))
+```
+
+*Question: Is there a difference in spending behavior between online (chip-based) and in-store (swipe-based) transactions?*
+
+1.  **Calculating summary statistics for each transaction type**
+
+```{r}
+chip_based_stats <- df_selected %>% filter(use_chip == "Online Transaction") %>%
+  summarise(
+    count = n(),
+    total_amount = sum(amount, na.rm = TRUE),
+    mean_amount = mean(amount, na.rm = TRUE),
+    median_amount = median(amount, na.rm = TRUE),
+    std_amount = sd(amount, na.rm = TRUE)
+  )
+
+swipe_based_stats <- df_selected %>% filter(use_chip == "Swipe Transaction") %>%
+  summarise(
+    count = n(),
+    total_amount = sum(amount, na.rm = TRUE),
+    mean_amount = mean(amount, na.rm = TRUE),
+    median_amount = median(amount, na.rm = TRUE),
+    std_amount = sd(amount, na.rm = TRUE)
+  )
+
+chip_based_stats
+swipe_based_stats
+```
+
+Looking at the statistics, averagely people tend to spend 53 - 52\$ on both platforms. However, there are more chip transactions made looking at the count.
+
+2.  **The number of transactions for each type and payment method**
+
+```{r}
+top_transactions <- df_selected %>%
+  group_by(use_chip, transaction_type) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  group_by(use_chip) %>%
+  slice_head(n = 5)
+
+ggplot(top_transactions, aes(x = reorder(transaction_type, -count), y = count, fill = use_chip)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Top 5 Transaction Types by Payment Method", x = "Transaction Type", y = "Count", color = "Payment Method") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 70, hjust=1, vjust=1))
+```
+
+According to the graph, the majority of transactions occur in grocery stores, supermarkets, miscellaneous food stores, and service stations, reflecting these as key areas of consumer spending. A noteworthy observation is that tolls and bridge fees are exclusively paid through online transactions, suggesting a preference or necessity for digital payments in this category. Conversely, drug stores and pharmacies predominantly handle payments via swipe transactions, indicating a possible inclination or requirement for in-person swipes in these establishments. Additionally, while online transactions are generally fewer across most categories, they are more frequent than swipe transactions in specific areas such as eating places and restaurants, demonstrating a shift towards digital payments in certain scenarios.
+
+3.  **Payment Method Based on Merchant City**
+
+```{r}
+payment_by_location <- df_selected %>%
+  group_by(use_chip, merchant_city) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  arrange(desc(count)) %>%
+  group_by(use_chip) %>%
+  slice_max(count, n = 5) %>%
+  ungroup() %>% 
+  arrange(desc(count))
+
+ggplot(payment_by_location, aes(x = reorder(merchant_city, -count), y = count, fill = use_chip)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Top 5 Cities by Payment Method", x = "Merchant City", y = "Total Transactions", color = "Payment Methods") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust=1)) +
+  facet_wrap(~ use_chip, scales = "free_y", ncol = 1)
+```
+
+Right off the bat, there are more online payments compared to store based payments. For store based payments, Houston has the most payments and followed by Miami and LA.
+
+3.  **Time Series Analysis on Payment Method Overtime**
+
+```{r}
+df_selected$date <- as.Date(df_selected$date)
+
+time_series_data <- df_selected %>%
+  group_by(date, use_chip) %>%
+  summarise(total_amount = sum(amount), .groups = 'drop')
+
+ggplot(time_series_data, aes(x = date, y = total_amount, color = use_chip, group = use_chip)) +
+  geom_line(size = 0.2) +
+  labs(title = "Time Series Analysis of Payment Methods", x = "Date", y = "Total Amount", color = "Payment Methods") +
+  theme_economist() +
+  theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
+```
+
+From 2010 onwards, the data indicates a higher frequency of store-based transactions compared to online transactions. However, a significant shift occurred after 2015, with online transactions surpassing store-based transactions, highlighting a trend towards digital payment methods. Interestingly, the graph reveals that in 2016, both online and store-based transactions dropped to zero, which could suggest an unusual event or anomaly affecting all transaction activities during that period.
+
+This temporal analysis underscores evolving consumer behavior and payment preferences over the decade.
+
+In order to find this anomaly, we need to filter the from the years of 2015, 2016, 2017, & 2018.
+
+```{r}
+df_selected$date <- as.Date(df_selected$date, format="%Y-%m-%d")
+df_selected$Year <- format(df_selected$date, "%Y")
+
+filtered_data <- df_selected %>%
+  filter(Year %in% c("2015","2016", "2017", "2018"))
+
+summary_data <- filtered_data %>%
+  group_by(Year, use_chip) %>%
+  summarize(TotalTransactions = n(), .groups = 'drop')
+
+total_transactions <- filtered_data %>%
+  group_by(Year) %>%
+  summarize(TotalTransactions = n(), .groups = 'drop')
+
+summary_data
+total_transactions
+```

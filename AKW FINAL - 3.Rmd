@@ -273,7 +273,9 @@ ggplot(sampled_data, aes(x = yearly_income, y = amount)) +
   ) +
   theme_economist()
 ```
+
 Average Spending By Credit Score and Linear Regression Between Credit Score and Transaction Amount
+
 ```{r}
 avg_spending_by_CreditScore = data3 %>%
   group_by(credit_score_range) %>%
@@ -524,4 +526,79 @@ ggplot(state_avg_income, aes(x = avg_income, y = avg_transaction)) +
 
 ```
 
+Prediction Model For Credit Limit Allocation
+
+1. Preparing the dataset
+
+```{r}
+library(caret)
+library(randomForest)
+library(Metrics)
+
+#Merging the datasets
+merged_data = sampled_data %>%
+  inner_join(card_data, by = c("client_id" = "id"))
+head(merged_data)
+
+#Creating a column for average spending
+avg_spending = merged_data %>%
+  group_by(client_id) %>%
+  summarize(avg_spending = mean(amount, na.rm = TRUE))
+
+#Preview the dataset
+head(avg_spending)
+
+#Joining the average spending into the merged data
+merged_data = merged_data %>%
+  inner_join(avg_spending, by = "client_id")
+
+#Selecting relevant features and targets
+features = c("yearly_income", "credit_score", "current_age", "avg_spending", "total_debt")
+
+target = "credit_limit"
+
+#Filter the dataset for relevant columns and remove missing values
+merged_data = merged_data %>% select(all_of(c(features,target)))
+
+#Preview the dataset
+head(merged_data)
+```
+
+2. Split the data into training and testing
+
+```{r}
+set.seed(42)
+trainIndex = createDataPartition(merged_data$credit_limit, p = 0.8, list = FALSE)
+train = merged_data[trainIndex, ]
+test = merged_data[-trainIndex, ]
+```
+
+Training the Random Forest Regressor Model
+
+```{r}
+set.seed(42)
+model = randomForest(credit_limit ~ ., data = train, ntree = 100, importance = TRUE)
+
+print(model)
+
+predictions = predict(model, test)
+
+mae = mae(test$credit_limit, predictions)
+rmse = rmse(test$credit_limit, predictions)
+r2 = r2(predictions, test$credit_limit)
+
+cat("Mean Absolute Error (MAE):", mae, "\n")
+cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+cat("R-squared (R²):", r2, "\n")
+```
+
+Plot Actual Vs Predicted Credit Limits
+
+```{r}
+ggplot(data = data.frame(Actual = test$credit_limit, Predicted = predictions), aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue", alpha = 0.6) +
+  geom_abline(intercept = 0, sloe = 1, color = "red", linetype = "dashed") +
+  labs(title = "Actual vs Predicted Credit Limits", x = "Actual Credit Limit", y = "Predicted Credit Limit") +
+  theme_economist()
+```
 

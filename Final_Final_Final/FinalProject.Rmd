@@ -1,3 +1,17 @@
+---
+title: "Financial Transaction Dataset Report"
+author: "Group-5"
+date: "2024-12-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Required Libraries
+
+```{r}
 library(dplyr)
 library(ggplot2)
 library(rjson)
@@ -11,9 +25,14 @@ library(scales)
 library(randomForest)
 library(caret)
 library(Metrics)
+```
 
+Loading all the csv, and JSON files
+
+```{r}
 #Transactions CSV File
 transactions =fread("D:/Education/Data Science/Programming with R/FinalProject/transactions_data.csv")
+
 #Merchant Categories JSON File
 merchant_categories = fromJSON(file = "D:/Education/Data Science/Programming with R/FinalProject/mcc_codes.json")
 mcc_df <- data.frame(mcc_code = names(merchant_categories), business_type = unlist(merchant_categories), stringsAsFactors = FALSE)
@@ -23,8 +42,11 @@ user_data = read.csv("D:/Education/Data Science/Programming with R/FinalProject/
 
 #Card Data CSV File
 card_data = read.csv("D:/Education/Data Science/Programming with R/FinalProject/cards_data.csv")
+```
 
-#Exploring Datasets
+Exploring the Datasets
+
+```{r}
 summary(transactions)
 head(transactions)
 
@@ -33,15 +55,21 @@ head(user_data)
 
 summary(card_data)
 head(card_data)
+```
 
-#Checking for missing values
+Checking for missing values
+
+```{r}
 colSums(is.na(transactions)) #For Transactions File
 
 colSums(is.na(user_data)) #For User Data File
 
 colSums(is.na(card_data)) #For  Card Data File
+```
 
-#Data Wrangling Process
+Data Wrangling Process
+
+```{r}
 #Clean Up Process For Transactions CSV File
 transactions$amount = gsub("[$,-]", "", transactions$amount) #Removing the $ sign and minus sign from the "amount" column
 transactions$amount = as.numeric(transactions$amount) #Converting the column into numerics
@@ -54,13 +82,8 @@ user_data$yearly_income = as.numeric(user_data$yearly_income) #Converting into a
 user_data$total_debt = gsub("[$,]", "", user_data$total_debt) #Removing the $ sign
 user_data$total_debt = as.numeric(user_data$total_debt) #Converting into a numeric
 
-head(user_data)
-
-
 #Clean Up Process For Merchant Categories JSON File
 mcc_df$mcc_code = as.integer(mcc_df$mcc_code) #Converting the mcc code into integers
-
-str(mcc_df) #Rechecking to see changes were made correctly
 
 #Clean Up Process For Card Data CSV File
 card_data$credit_limit = gsub("[$,]", "", card_data$credit_limit) #Removing the $sign
@@ -71,8 +94,11 @@ head(transactions$amount)
 head(user_data)
 head(card_data)
 head(mcc_df)
+```
 
-#Merging all the datasets by common keys
+Merging all the data sets by common keys
+
+```{r}
 data1 = transactions %>%
   inner_join(user_data, by = c("client_id" = "id")) #Joining User Data into Transaction Data
 
@@ -117,14 +143,20 @@ data3 <- data3 %>%
       current_age > 45 ~ "Older People"
     )
   )
+```
 
-#Converting date to a propoer format and grouping by month
+Converting date to a proper format and grouping by month
+
+```{r}
 transactions1 <- transactions %>%
   mutate(transaction_month = floor_date(as.Date(date, format = "%Y-%m-%d"), "month")) %>%
   group_by(transaction_month) %>%
   summarize(total_amount = sum(amount, na.rm = TRUE))
+```
 
-#Stratified Random Sampling Dataset
+Stratified Random Sampling Dataset
+
+```{r}
 set.seed(123) #To reproduce the same results
 
 sampled_data = data3 %>%
@@ -133,9 +165,13 @@ sampled_data = data3 %>%
   ungroup()
 
 summary(sampled_data)
+```
 
-#Findings
-#Summarizing the transactions count by merchant city and selecting the top 10 cities
+**Findings**
+
+*Summarizing the Transactions Count by Merchant City and Selecting the Top 10 Cities*
+
+```{r}
 top_cities = transactions %>%
   filter(merchant_city != "ONLINE") %>% # Exclude transactions with "online" as the merchant city
   group_by(merchant_city) %>%
@@ -149,8 +185,11 @@ ggplot(top_cities, aes(x = reorder(merchant_city, transaction_count), y = transa
   coord_flip() +
   labs(title = "Top 10 Merchant Cities by Transaction Count", x = "Merchant City", y = "Transaction Count") +
   theme_economist()
+```
 
-#Average Spending By Income Bracket
+*Average Spending By Income Bracket*
+
+```{r}
 avg_spending = data3 %>%
   group_by(income_bin) %>%
   summarize(average_spending = mean(amount, na.rm = TRUE))
@@ -164,8 +203,11 @@ ggplot(avg_spending, aes(x = income_bin, y = average_spending, fill = income_bin
   ) +
   theme_economist() +
   scale_fill_brewer(palette = "Set3")
+```
 
-#Average Spending by Credit Score Range
+*Average Spending by Credit Score Range*
+
+```{r}
 avg_spending_by_CreditScore = data3 %>%
   group_by(credit_score_range) %>%
   summarize(average_spending = mean(amount, na.rm = TRUE))
@@ -179,13 +221,14 @@ ggplot(avg_spending_by_CreditScore, aes(x = credit_score_range, y = average_spen
   ) +
   theme_economist() +
   scale_fill_brewer(palette = "Set2")
+```
 
-#Linear regression to assess the relationship between credit score and spending amount
+*Linear Regression to Assess the Relationship Between Credit Score and Spending Amount*
+
+```{r}
 lm_credit_score = lm(amount~credit_score, data = sampled_data)
 summary(lm_credit_score)
 
-
-# Plotting the linear regression between Credit Score and transaction amount
 ggplot(sampled_data, aes(x = credit_score, y = amount)) +
   geom_point(alpha = 0.4) +  # Scatter plot of the data points
   geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adding the regression line
@@ -195,8 +238,11 @@ ggplot(sampled_data, aes(x = credit_score, y = amount)) +
     y = "Transaction Amount"
   ) +
   theme_economist()
+```
 
-#Relationship Between Age and Average Debt
+*Relationship Between Age and Average Debt*
+
+```{r}
 avg_debt_by_age = data3 %>%
   group_by(current_age) %>%
   summarize(average_debt = mean(total_debt, na.rm = TRUE))
@@ -210,8 +256,11 @@ ggplot(avg_debt_by_age, aes(x = current_age, y = average_debt)) +
     y = "Average Debt"
   ) +
   theme_economist()
+```
 
-#Average Debt by Age Group
+*Average Debt by Age Group*
+
+```{r}
 avg_debt_and_age = data3 %>%
   mutate(age_bin = cut(current_age, breaks = seq(20,100,15))) %>%
   group_by(age_bin) %>%
@@ -221,12 +270,12 @@ ggplot(avg_debt_and_age, aes(x = age_bin, y = avg_debt)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   labs(title = "Average Debt By Age Group", x = "Age Group", y = "Average Debt") +
   theme_economist()
+```
 
+*Correlation Coefficient between Credit Limit and Credit Score*
 
-#Correlation coefficient between credit limit and credit score
+```{r}
 correlation <- cor(data4$credit_score, data4$credit_limit, use = "complete.obs")
-
-# Print the correlation result
 print(paste("Correlation between Credit Score and Credit Limit: ", round(correlation, 2)))
 
 ggplot(data4, aes(x = credit_limit, y = credit_score)) +
@@ -239,8 +288,11 @@ ggplot(data4, aes(x = credit_limit, y = credit_score)) +
     y = "Credit Score"
   ) +
   theme_economist()
+```
 
-#Correlation Between Income and Credit Limit
+*Correlation Between Income and Credit Limit*
+
+```{r}
 # Step 1: Calculate the correlation between yearly income and credit limit
 correlation_income_limit <- cor(data4$yearly_income, data4$credit_limit, use = "complete.obs")
 
@@ -263,8 +315,11 @@ ggplot(data4, aes(x = yearly_income, y = credit_limit)) +
     y = "Credit Limit"
   ) +
   theme_economist()
+```
 
-#Relationship between Number of Cards and Total Debt
+*Relationship between Number of Cards and Total Debt*
+
+```{r}
 debt_by_cards <- sampled_data %>%
   group_by(num_credit_cards) %>%
   summarize(
@@ -285,9 +340,12 @@ ggplot(debt_by_cards, aes(x = num_credit_cards, y = avg_total_debt)) +
     y = "Average Total Debt"
   ) +
   theme_economist()
+```
 
-# Create interactive map
-leaflet(users_data) %>%
+*Interactive Map of All the Users*
+
+```{r}
+leaflet(user_data) %>%
   addTiles() %>%
   addCircleMarkers(
     ~longitude, ~latitude,
@@ -297,12 +355,15 @@ leaflet(users_data) %>%
       "<br>Credit Score:", credit_score
     )
   )
+```
 
+*Interactive Map for Top 5 Users*
+
+```{r}
 top_5_users <- user_data %>%
   arrange(desc(yearly_income)) %>%
   head(5)
 
-# Create interactive map for top 5 users
 leaflet(top_5_users) %>%
   addTiles() %>%
   addCircleMarkers(
@@ -313,8 +374,11 @@ leaflet(top_5_users) %>%
       "<br>Credit Score:", credit_score
     )
   )
+```
 
-# Fit the linear regression model for credit score and yearly income
+*Linear Regression Model for Credit Score and Yearly Income*
+
+```{r}
 model <- lm(credit_score ~ yearly_income, data = user_data)
 
 # View the summary of the model
@@ -329,8 +393,11 @@ ggplot(user_data, aes(x = yearly_income, y = credit_score)) +
        x = "Yearly Income",
        y = "Credit Score") +
   theme_economist()
+```
 
-#The number of transactions for each type and payment method
+*Number of Transactions for Each Type and Payment Method*
+
+```{r}
 top_transactions <- data3 %>%
   group_by(use_chip, business_type) %>%
   summarise(count = n()) %>%
@@ -343,8 +410,11 @@ ggplot(top_transactions, aes(x = reorder(business_type, -count), y = count, fill
   labs(title = "Top 5 Transaction Types by Payment Method", x = "Transaction Type", y = "Count", color = "Payment Method") +
   theme_economist() +
   theme(axis.text.x = element_text(angle = 70, hjust=1, vjust=1))
+```
 
-#TimeSeriesAnalysis of Payment Methods
+*Time Series Analysis of Payment Methods*
+
+```{r}
 data3$date <- as.Date(data3$date)
 time_series_data <- data3 %>%
   group_by(date, use_chip) %>%
@@ -355,8 +425,11 @@ ggplot(time_series_data, aes(x = date, y = total_amount, color = use_chip, group
   labs(title = "Time Series Analysis of Payment Methods", x = "Date", y = "Total Amount", color = "Payment Methods") +
   theme_economist() +
   theme(axis.text.x = element_text(angle = 45, hjust=1, vjust=1))
+```
 
-#Credit Limit Prediction Model
+*Credit Limit Prediction Model*
+
+```{r}
 # Step 1: Stratified Sampling for Each Dataset
 # Sample 10% of `transactions` based on `user_id`
 set.seed(123)  # For reproducibility
@@ -453,4 +526,11 @@ cat("Evaluation Metrics:\n")
 cat("Mean Absolute Error (MAE):", round(mae, 2), "\n")
 cat("Root Mean Squared Error (RMSE):", round(rmse, 2), "\n")
 cat("R² Score:", round(r2, 2), "\n")
+```
 
+Additional GB needed for Knitting
+
+```{r}
+# Set R_MAX_VSIZE environment variable
+Sys.setenv(R_MAX_VSIZE = 4096) # Set to the maximum memory in MB (e.g., 4096 MB = 4 GB)
+```

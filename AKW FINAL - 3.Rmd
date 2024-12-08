@@ -350,7 +350,7 @@ ggplot(avg_debt_by_age, aes(x = current_age, y = average_debt)) +
   geom_smooth(method = "lm", color = "blue") +
   labs(
     title = "Relationship between Age and Average Debt",
-    x = "Age",
+    x = "Average Age",
     y = "Average Debt"
   ) +
   theme_economist()
@@ -358,6 +358,8 @@ ggplot(avg_debt_by_age, aes(x = current_age, y = average_debt)) +
 #Linear regression to assess the relationship between current age and total debt
 lm_age_debt <- lm(total_debt ~ current_age, data = user_data)
 summary(lm_age_debt)
+
+plot(lm_age_debt)
 
 # Plotting the linear regression between Current Age and Total Debt
 ggplot(sampled_data, aes(x = current_age, y = total_debt)) +
@@ -448,6 +450,13 @@ Correlation Between Income and Credit Limit
 # Step 1: Calculate the correlation between yearly income and credit limit
 correlation_income_limit <- cor(data4$yearly_income, data4$credit_limit, use = "complete.obs")
 
+#Building a simple linear regression
+lm_income_creditlimit = lm(credit_limit ~ yearly_income, data = data4)
+summary(lm_income_creditlimit)
+
+#Evaluating the regression
+plot(lm_income_creditlimit)
+
 # Step 2: Create a scatter plot
 ggplot(data4, aes(x = yearly_income, y = credit_limit)) +
   geom_point(alpha = 0.3, color = "black") +
@@ -471,6 +480,12 @@ debt_by_cards <- sampled_data %>%
   summarize(
     avg_total_debt = mean(total_debt, na.rm = TRUE)
   )
+#Building a simple linear regression
+lm_debt_cards = lm(avg_total_debt ~  num_credit_cards, data = debt_by_cards)
+summary(lm_debt_cards)
+
+#Evaluating the regression
+plot(lm_debt_cards)
 
 # Plot the relationship
 ggplot(debt_by_cards, aes(x = num_credit_cards, y = avg_total_debt)) +
@@ -505,9 +520,8 @@ ggplot(state_avg_income, aes(x = avg_income, y = avg_transaction)) +
     x = "Average Yearly Income",
     y = "Average Transaction Amount"
   ) +
-  theme_minimal()
+  theme_economist()
 
 ```
-
 
 

@@ -177,6 +177,22 @@ ggplot(avg_spending_by_CreditScore, aes(x = credit_score_range, y = average_spen
   theme_economist() +
   scale_fill_brewer(palette = "Set2")
 
+#Linear regression to assess the relationship between credit score and spending amount
+lm_credit_score = lm(amount~credit_score, data = sampled_data)
+summary(lm_credit_score)
+
+
+# Plotting the linear regression between Credit Score and transaction amount
+ggplot(sampled_data, aes(x = credit_score, y = amount)) +
+  geom_point(alpha = 0.4) +  # Scatter plot of the data points
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +  # Adding the regression line
+  labs(
+    title = "Relationship between Credit Score and Spending",
+    x = "Credit Score",
+    y = "Transaction Amount"
+  ) +
+  theme_economist()
+
 #Relationship Between Age and Average Debt
 avg_debt_by_age = data3 %>%
   group_by(current_age) %>%
@@ -203,16 +219,6 @@ ggplot(avg_debt_and_age, aes(x = age_bin, y = avg_debt)) +
   labs(title = "Average Debt By Age Group", x = "Age Group", y = "Average Debt") +
   theme_economist()
 
-#Linear Regression Between Yearly Income and Total Debt
-lm_income_debt = lm(total_debt ~ yearly_income, data = user_data)
-summary(lm_income_debt)
-
-ggplot(user_data, aes(x = yearly_income, y = total_debt)) +
-  geom_point(alpha = 0.4) +
-  geom_smooth(method = "lm", color = "blue") +
-  labs(title = "Relationship Between Yearly Income and Total Debt",
-       x = "Yearly Income", y = "Total Debt") +
-  theme_economist()
 
 #Correlation coefficient between credit limit and credit score
 correlation <- cor(data4$credit_score, data4$credit_limit, use = "complete.obs")
@@ -289,7 +295,7 @@ leaflet(users_data) %>%
     )
   )
 
-# Assuming users_data is your dataset
+
 top_5_users <- users_data %>%
   arrange(desc(yearly_income)) %>%
   head(5)

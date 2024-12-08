@@ -523,82 +523,118 @@ ggplot(state_avg_income, aes(x = avg_income, y = avg_transaction)) +
     y = "Average Transaction Amount"
   ) +
   theme_economist()
-
 ```
 
-Prediction Model For Credit Limit Allocation
-
-1. Preparing the dataset
+Credit Limit Prediction Model 
 
 ```{r}
+# Load necessary libraries
+library(dplyr)
 library(caret)
+library(tidyverse)
 library(randomForest)
 library(Metrics)
 
-#Merging the datasets
-merged_data = sampled_data %>%
-  inner_join(card_data, by = c("client_id" = "id"))
-head(merged_data)
-
-#Creating a column for average spending
-avg_spending = merged_data %>%
+# Step 1: Stratified Sampling for Each Dataset
+# Sample 10% of `transactions` based on `user_id`
+set.seed(123)  # For reproducibility
+transaction_sample <- transactions %>%
   group_by(client_id) %>%
-  summarize(avg_spending = mean(amount, na.rm = TRUE))
+  slice_sample(prop = 0.1)
 
-#Preview the dataset
-head(avg_spending)
+# Sample 10% of `card_data` based on `user_id`
+card_sample <- card_data %>%
+  group_by(client_id) %>%
+  slice_sample(prop = 0.5)
 
-#Joining the average spending into the merged data
-merged_data = merged_data %>%
-  inner_join(avg_spending, by = "client_id")
+# Sample 10% of `user_data` based on `user_id`
+user_sample <- user_data %>%
+  group_by(current_age) %>%
+  slice_sample(prop = 0.8)
 
-#Selecting relevant features and targets
-features = c("yearly_income", "credit_score", "current_age", "avg_spending", "total_debt")
+# Step 2: Merge the Sampled Datasets
+# Merge the sampled data using `user_id` as the key
+sampled_data <- transaction_sample %>%
+  left_join(card_sample, by = "client_id") %>%
+  left_join(user_sample, by = c("client_id" = "id"))
 
+# Step 3: Preprocessing - Create 'average_spending' and drop unnecessary columns
+# Calculate average spending from transactions
+avg_spending <- transaction_sample %>%
+  group_by(client_id) %>%
+  summarize(avg_spending = mean(amount))
+
+# Add the average spending column to the merged dataset
+sampled_data <- sampled_data %>%
+  left_join(avg_spending, by = "client_id") %>%
+  select(client_id, yearly_income, credit_score, current_age, total_debt, avg_spending, credit_limit)
+
+features = c("yearly_income", "credit_score", "current_age","total_debt", "avg_spending")
 target = "credit_limit"
-
-#Filter the dataset for relevant columns and remove missing values
-merged_data = merged_data %>% select(all_of(c(features,target)))
-
-#Preview the dataset
-head(merged_data)
 ```
 
-2. Split the data into training and testing
+
 
 ```{r}
-set.seed(42)
-trainIndex = createDataPartition(merged_data$credit_limit, p = 0.8, list = FALSE)
-train = merged_data[trainIndex, ]
-test = merged_data[-trainIndex, ]
+# Step 4: Train-Test Split
+# Remove rows with missing values
+sampled_data <- na.omit(sampled_data)
+
+# Split into training (80%) and testing (20%) sets
+set.seed(123)
+train_index <- createDataPartition(sampled_data$credit_limit, p = 0.8, list = FALSE)
+train_data <- sampled_data[train_index, ]
+test_data <- sampled_data[-train_index, ]
+
+# Step 5: Train the Random Forest Regressor
+rf_model <- randomForest(credit_limit ~ yearly_income + credit_score + current_age + total_debt + avg_spending, 
+                         data = train_data, 
+                         ntree = 100, 
+                         importance = TRUE)
+
+# Step 6: Evaluate the Model
+# Predict on the test set
+predictions <- predict(rf_model, test_data)
+
+# Calculate RMSE for model evaluation
+rmse <- sqrt(mean((predictions - test_data$credit_limit)^2))
+print(paste("RMSE:", rmse))
+
+# Step 7: Feature Importance
+print(importance(rf_model))
+
+# Combine actual and predicted credit limits into a single data frame
+results <- data.frame(
+  Actual = test_data$credit_limit,
+  Predicted = predictions
+)
+
+# Scatter plot for Actual vs Predicted
+ggplot(results, aes(x = Actual, y = Predicted)) +
+  geom_point(alpha = 0.6, color = "blue") +  # Points for predictions
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +  # Line of perfect prediction
+  labs(
+    title = "Predicted vs Actual Credit Limits",
+    x = "Actual Credit Limit",
+    y = "Predicted Credit Limit"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+
+mae <- mae(test_data$credit_limit, predictions)
+rmse <- rmse(test_data$credit_limit, predictions)
+
+# R² calculation
+actual_mean <- mean(test_data$credit_limit)
+ss_total <- sum((test_data$credit_limit - actual_mean)^2)
+ss_residual <- sum((test_data$credit_limit - predictions)^2)
+r2 <- 1 - (ss_residual / ss_total)
+
+# Print the metrics
+cat("Evaluation Metrics:\n")
+cat("Mean Absolute Error (MAE):", round(mae, 2), "\n")
+cat("Root Mean Squared Error (RMSE):", round(rmse, 2), "\n")
+cat("R² Score:", round(r2, 2), "\n")
 ```
 
-Training the Random Forest Regressor Model
-
-```{r}
-set.seed(42)
-model = randomForest(credit_limit ~ ., data = train, ntree = 100, importance = TRUE)
-
-print(model)
-
-predictions = predict(model, test)
-
-mae = mae(test$credit_limit, predictions)
-rmse = rmse(test$credit_limit, predictions)
-r2 = r2(predictions, test$credit_limit)
-
-cat("Mean Absolute Error (MAE):", mae, "\n")
-cat("Root Mean Squared Error (RMSE):", rmse, "\n")
-cat("R-squared (R²):", r2, "\n")
-```
-
-Plot Actual Vs Predicted Credit Limits
-
-```{r}
-ggplot(data = data.frame(Actual = test$credit_limit, Predicted = predictions), aes(x = Actual, y = Predicted)) +
-  geom_point(color = "blue", alpha = 0.6) +
-  geom_abline(intercept = 0, sloe = 1, color = "red", linetype = "dashed") +
-  labs(title = "Actual vs Predicted Credit Limits", x = "Actual Credit Limit", y = "Predicted Credit Limit") +
-  theme_economist()
-```
 

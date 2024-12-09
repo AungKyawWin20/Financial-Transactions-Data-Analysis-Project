@@ -13,16 +13,16 @@ library(caret)
 library(Metrics)
 
 #Transactions CSV File
-transactions =fread("D:/Education/Data Science/Programming with R/FinalProject/transactions_data.csv")
+transactions =fread("transactions_data.csv")
 #Merchant Categories JSON File
-merchant_categories = fromJSON(file = "D:/Education/Data Science/Programming with R/FinalProject/mcc_codes.json")
+merchant_categories = fromJSON(file = "mcc_codes.json")
 mcc_df <- data.frame(mcc_code = names(merchant_categories), business_type = unlist(merchant_categories), stringsAsFactors = FALSE)
 
 #users Data CSV File
-user_data = read.csv("D:/Education/Data Science/Programming with R/FinalProject/users_data.csv")
+user_data = read.csv("users_data.csv")
 
 #Card Data CSV File
-card_data = read.csv("D:/Education/Data Science/Programming with R/FinalProject/cards_data.csv")
+card_data = read.csv("cards_data.csv")
 
 #Exploring Datasets
 summary(transactions)

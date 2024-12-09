@@ -545,12 +545,12 @@ transaction_sample <- transactions %>%
 # Sample 10% of `card_data` based on `user_id`
 card_sample <- card_data %>%
   group_by(client_id) %>%
-  slice_sample(prop = 0.5)
+  slice_sample(prop = 0.3)
 
 # Sample 10% of `user_data` based on `user_id`
 user_sample <- user_data %>%
   group_by(current_age) %>%
-  slice_sample(prop = 0.8)
+  slice_sample(prop = 0.3)
 
 # Step 2: Merge the Sampled Datasets
 # Merge the sampled data using `user_id` as the key

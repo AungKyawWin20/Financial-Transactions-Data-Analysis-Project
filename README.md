@@ -1,5 +1,15 @@
 # Financial Transactions Analysis & Credit Limit Prediction
 
+Analyze, visualize, and predict financial behaviors using real-world transaction data. This R project uncovers insights into spending patterns, debt, credit utilization, and demographic trends, and predicts credit limits with machine learning.
+
+## 🚀 Project Highlights
+
+- **Comprehensive Data Analysis:** Explore user spending, debt, and credit utilization.
+- **Feature Engineering:** Create meaningful features like income bins, credit score ranges, and debt-to-income ratios.
+- **Interactive Visualizations:** Generate bar charts, scatter plots, time series, and interactive maps.
+- **Machine Learning:** Predict credit limits using Random Forest regression.
+- **Actionable Insights:** Correlate financial behaviors with demographics for deeper understanding.
+
 ## Project Overview
 
 This R project analyzes financial transaction data to extract meaningful insights about spending patterns, debt, credit utilization, and demographic correlations. It also includes a predictive model to estimate credit limits using Random Forest regression.
@@ -89,14 +99,21 @@ library(caret)
 library(Metrics)
 ```
 ## How to Run the Project
-1. Clone this repository or download the script.
 
-2. Ensure all datasets (`transactions_data.csv`, `users_data.csv`, `cards_data.csv`, `mcc_codes.json`) are in the working directory.
-
-3. Run the R script (`Final_Project_Financial_transaction.R`) step by step.
+1. **Clone or download** this repository.
+2. Place all datasets (`transactions_data.csv`, `users_data.csv`, `cards_data.csv`, `mcc_codes.json`) in your working directory.
+3. Run the main script:  
+   `Final_Project_Financial_transaction.R`  
+   *(or knit `FinalProject.Rmd` for a full report)*
 
 ## Results & Insights
-Please review the final report and presentation file for detailed insights into the project. 
+
+- Discover top spending cities and user segments
+- Visualize correlations between income, debt, and credit scores
+- Predict credit limits with robust machine learning models
+
+See the final report and presentation for detailed findings.
+
 
 ## Future Improvements
 - Explore deep learning methods for credit limit prediction.
